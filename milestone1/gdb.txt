@@ -1,0 +1,504 @@
++p kvm
+$1 = {
+  fd_ = 3
+}
++n
++p kvm
+$2 = {
+  fd_ = 3
+}
++n
++p vm
+$3 = {
+  fd_ = 4
+}
++n
++p ram
+$4 = {
+  base_ = 0x7ffff7a17000 "",
+  size_ = 1048576
+}
++p/x ram
+$5 = {
+  base_ = 0x7ffff7a17000,
+  size_ = 0x100000
+}
++n
++p kvm_userspace_memory_region 
+Attempt to use a type name as an expression
++p region
+$6 = {
+  slot = 0,
+  flags = 0,
+  guest_phys_addr = 0,
+  memory_size = 0,
+  userspace_addr = 0
+}
++n
++n
++n
++n
++p/x region
+$7 = {
+  slot = 0x0,
+  flags = 0x0,
+  guest_phys_addr = 0x0,
+  memory_size = 0x100000,
+  userspace_addr = 0x7ffff7a17000
+}
++n
++p region
+$8 = {
+  slot = 0,
+  flags = 0,
+  guest_phys_addr = 0,
+  memory_size = 1048576,
+  userspace_addr = 140737347940352
+}
++p/x region
+$9 = {
+  slot = 0x0,
+  flags = 0x0,
+  guest_phys_addr = 0x0,
+  memory_size = 0x100000,
+  userspace_addr = 0x7ffff7a17000
+}
++p/x &region
+$10 = 0x7fffffffd8a0
++p/x kCodeGpa
+$11 = 0x1000
++p/x &kCodeGpa
+Can't take address of "(anonymous namespace)::kCodeGpa" which isn't an lvalue.
++p/x *kCodeGpa
+Cannot access memory at address 0x1000
++p/x kGuestCode
+$12 = {0xbe, 0x10, 0x10, 0xba, 0xf8, 0x3, 0xac, 0x84, 0xc0, 0x74, 0x3, 0xee, 0xeb, 0xf8, 0xf4}
++p/x kCodeGpa
+$13 = 0x1000
++p sizeof(kGuestCode)
+$14 = 15
++p/x ram
+$15 = {
+  base_ = 0x7ffff7a17000,
+  size_ = 0x100000
+}
++s
+(anonymous namespace)::GuestMemory::write (this=0x7fffffffd870, gpa=4096, src=0x5555555580d8 <kGuestCode>, len=15) at main.cpp:114
++p gpa
+$16 = 4096
++p len
+$17 = 15
++p/x len
+$18 = 0xf
++n
++n
++n
+main () at main.cpp:348
++p/x ram
+$19 = {
+  base_ = 0x7ffff7a17000,
+  size_ = 0x100000
+}
++p/x ram.base_
+$20 = 0x7ffff7a17000
++x/15x ram.base_
+0x7ffff7a17000:	0x00000000	0x00000000	0x00000000	0x00000000
+0x7ffff7a17010:	0x00000000	0x00000000	0x00000000	0x00000000
+0x7ffff7a17020:	0x00000000	0x00000000	0x00000000	0x00000000
+0x7ffff7a17030:	0x00000000	0x00000000	0x00000000
++x/15x 0x1000
+0x1000:	Cannot access memory at address 0x1000
++x/15x (ram.base_+kCodeGpa)
+0x7ffff7a18000:	0xba1010be	0x84ac03f8	0xee0374c0	0x00f4f8eb
+0x7ffff7a18010:	0x00000000	0x00000000	0x00000000	0x00000000
+0x7ffff7a18020:	0x00000000	0x00000000	0x00000000	0x00000000
+0x7ffff7a18030:	0x00000000	0x00000000	0x00000000
++s
+(anonymous namespace)::GuestMemory::write (this=0x7fffffffd870, gpa=4112, src=0x555555558100 <kGuestMessage>, len=56) at main.cpp:114
++p/x gpa
+$21 = 0x1010
++p *src
+Attempt to dereference a generic pointer.
++p kGuestMessage
+$22 = "Hello from the guest! (printed via a VM exit per byte)\n"
++p &kGuestMessage
+$23 = (const char (*)[56]) 0x555555558100 <kGuestMessage>
++p sizeof(kGuestMessage)
+$24 = 56
++n
++n
++n
+main () at main.cpp:351
++x/71x 0x7ffff7a18000
+0x7ffff7a18000:	0xba1010be	0x84ac03f8	0xee0374c0	0x00f4f8eb
+0x7ffff7a18010:	0x6c6c6548	0x7266206f	0x74206d6f	0x67206568
+0x7ffff7a18020:	0x74736575	0x70282021	0x746e6972	0x76206465
+0x7ffff7a18030:	0x61206169	0x204d5620	0x74697865	0x72657020
+0x7ffff7a18040:	0x74796220	0x000a2965	0x00000000	0x00000000
+0x7ffff7a18050:	0x00000000	0x00000000	0x00000000	0x00000000
+0x7ffff7a18060:	0x00000000	0x00000000	0x00000000	0x00000000
+0x7ffff7a18070:	0x00000000	0x00000000	0x00000000	0x00000000
+0x7ffff7a18080:	0x00000000	0x00000000	0x00000000	0x00000000
+0x7ffff7a18090:	0x00000000	0x00000000	0x00000000	0x00000000
+0x7ffff7a180a0:	0x00000000	0x00000000	0x00000000	0x00000000
+0x7ffff7a180b0:	0x00000000	0x00000000	0x00000000	0x00000000
+0x7ffff7a180c0:	0x00000000	0x00000000	0x00000000	0x00000000
+0x7ffff7a180d0:	0x00000000	0x00000000	0x00000000	0x00000000
+0x7ffff7a180e0:	0x00000000	0x00000000	0x00000000	0x00000000
+0x7ffff7a180f0:	0x00000000	0x00000000	0x00000000	0x00000000
+0x7ffff7a18100:	0x00000000	0x00000000	0x00000000	0x00000000
+0x7ffff7a18110:	0x00000000	0x00000000	0x00000000
++s
+(anonymous namespace)::Fd::get (this=0x7fffffffd858) at main.cpp:71
++n
+main () at main.cpp:352
++p/x vcpu
+$25 = {
+  fd_ = {
+    fd_ = 0x5
+  },
+  run_ = 0x7ffff7fba000,
+  run_size_ = 0x3000
+}
++s
+(anonymous namespace)::Vcpu::reset_to_real_mode (this=0x7fffffffd880, entry_ip=4096) at main.cpp:172
++n
++p/x entry_ip
+$26 = 0x1000
++p/x sregs
+$27 = {
+  cs = {
+    base = 0x0,
+    limit = 0x0,
+    selector = 0x0,
+    type = 0x0,
+    present = 0x0,
+    dpl = 0x0,
+    db = 0x0,
+    s = 0x0,
+    l = 0x0,
+    g = 0x0,
+    avl = 0x0,
+    unusable = 0x0,
+    padding = 0x0
+  },
+  ds = {
+    base = 0x0,
+    limit = 0x8,
+    selector = 0x0,
+    type = 0x0,
+    present = 0x0,
+    dpl = 0x8,
+    db = 0x0,
+    s = 0x0,
+    l = 0x0,
+    g = 0x0,
+    avl = 0x0,
+    unusable = 0x0,
+    padding = 0x0
+  },
+  es = {
+    base = 0x6,
+    limit = 0x6,
+    selector = 0x0,
+    type = 0x0,
+    present = 0x0,
+    dpl = 0x4,
+    db = 0x0,
+    s = 0x0,
+    l = 0x0,
+    g = 0x0,
+    avl = 0x0,
+    unusable = 0x0,
+    padding = 0x0
+  },
+  fs = {
+    base = 0x4,
+    limit = 0x2,
+    selector = 0x0,
+    type = 0x0,
+    present = 0x0,
+    dpl = 0xd4,
+    db = 0xd7,
+    s = 0xff,
+    l = 0xff,
+    g = 0xff,
+    avl = 0x7f,
+    unusable = 0x0,
+    padding = 0x0
+  },
+  gs = {
+    base = 0x7fffffffd790,
+    limit = 0x55557516,
+    selector = 0x5555,
+    type = 0x0,
+    present = 0x0,
+    dpl = 0xd4,
+    db = 0xd7,
+    s = 0xff,
+    l = 0xff,
+    g = 0xff,
+    avl = 0x7f,
+    unusable = 0x0,
+    padding = 0x0
+  },
+  ss = {
+    base = 0x7fffffffd818,
+    limit = 0x2,
+    selector = 0x0,
+    type = 0x0,
+    present = 0x0,
+    dpl = 0xd4,
+    db = 0xd7,
+    s = 0xff,
+    l = 0xff,
+    g = 0x5,
+    avl = 0x0,
+    unusable = 0x0,
+    padding = 0x0
+  },
+  tr = {
+    base = 0x7fff00000010,
+    limit = 0xffffd7f0,
+    selector = 0x7fff,
+    type = 0x0,
+    present = 0x0,
+    dpl = 0xb0,
+    db = 0xd7,
+    s = 0xff,
+    l = 0xff,
+    g = 0xff,
+    avl = 0x7f,
+    unusable = 0x0,
+    padding = 0x0
+  },
+  ldt = {
+    base = 0xf3d00f9f8bfa8700,
+    limit = 0xffffd7e0,
+    selector = 0x7fff,
+    type = 0x0,
+    present = 0x0,
+    dpl = 0x18,
+    db = 0xd8,
+    s = 0xff,
+    l = 0xff,
+    g = 0xff,
+    avl = 0x7f,
+    unusable = 0x0,
+    padding = 0x0
+  },
+  gdt = {
+    base = 0x555555558082,
+    limit = 0x653a,
+    padding = {0x5555, 0x3000, 0x0}
+  },
+  idt = {
+    base = 0x3,
+    limit = 0x1,
+    padding = {0x0, 0x0, 0x0}
+  },
+  cr0 = 0x7fffffffd840,
+  cr2 = 0x55555555688a,
+  cr3 = 0x1010,
+  cr4 = 0xffffd870,
+  cr8 = 0x400000003,
+  efer = 0x7fffffffd880,
+  apic_base = 0x38,
+  interrupt_bitmap = {0x3000ffffffff, 0x7ffff7fba000, 0xf3d00f9f8bfa8700, 0x3}
+}
++p fd_.get()
+$28 = 5
++n
++n
++n
++n
++n
++n
++n
++p/x sregs
+$29 = {
+  cs = {
+    base = 0x0,
+    limit = 0xffff,
+    selector = 0x0,
+    type = 0xb,
+    present = 0x1,
+    dpl = 0x0,
+    db = 0x0,
+    s = 0x1,
+    l = 0x0,
+    g = 0x0,
+    avl = 0x0,
+    unusable = 0x0,
+    padding = 0x0
+  },
+  ds = {
+    base = 0x0,
+    limit = 0xffff,
+    selector = 0x0,
+    type = 0x3,
+    present = 0x1,
+    dpl = 0x0,
+    db = 0x0,
+    s = 0x1,
+    l = 0x0,
+    g = 0x0,
+    avl = 0x0,
+    unusable = 0x0,
+    padding = 0x0
+  },
+  es = {
+    base = 0x0,
+    limit = 0xffff,
+    selector = 0x0,
+    type = 0x3,
+    present = 0x1,
+    dpl = 0x0,
+    db = 0x0,
+    s = 0x1,
+    l = 0x0,
+    g = 0x0,
+    avl = 0x0,
+    unusable = 0x0,
+    padding = 0x0
+  },
+  fs = {
+    base = 0x0,
+    limit = 0xffff,
+    selector = 0x0,
+    type = 0x3,
+    present = 0x1,
+    dpl = 0x0,
+    db = 0x0,
+    s = 0x1,
+    l = 0x0,
+    g = 0x0,
+    avl = 0x0,
+    unusable = 0x0,
+    padding = 0x0
+  },
+  gs = {
+    base = 0x0,
+    limit = 0xffff,
+    selector = 0x0,
+    type = 0x3,
+    present = 0x1,
+    dpl = 0x0,
+    db = 0x0,
+    s = 0x1,
+    l = 0x0,
+    g = 0x0,
+    avl = 0x0,
+    unusable = 0x0,
+    padding = 0x0
+  },
+  ss = {
+    base = 0x0,
+    limit = 0xffff,
+    selector = 0x0,
+    type = 0x3,
+    present = 0x1,
+    dpl = 0x0,
+    db = 0x0,
+    s = 0x1,
+    l = 0x0,
+    g = 0x0,
+    avl = 0x0,
+    unusable = 0x0,
+    padding = 0x0
+  },
+  tr = {
+    base = 0x0,
+    limit = 0xffff,
+    selector = 0x0,
+    type = 0xb,
+    present = 0x1,
+    dpl = 0x0,
+    db = 0x0,
+    s = 0x0,
+    l = 0x0,
+    g = 0x0,
+    avl = 0x0,
+    unusable = 0x0,
+    padding = 0x0
+  },
+  ldt = {
+    base = 0x0,
+    limit = 0xffff,
+    selector = 0x0,
+    type = 0x2,
+    present = 0x1,
+    dpl = 0x0,
+    db = 0x0,
+    s = 0x0,
+    l = 0x0,
+    g = 0x0,
+    avl = 0x0,
+    unusable = 0x0,
+    padding = 0x0
+  },
+  gdt = {
+    base = 0x0,
+    limit = 0xffff,
+    padding = {0x0, 0x0, 0x0}
+  },
+  idt = {
+    base = 0x0,
+    limit = 0xffff,
+    padding = {0x0, 0x0, 0x0}
+  },
+  cr0 = 0x60000010,
+  cr2 = 0x0,
+  cr3 = 0x0,
+  cr4 = 0x0,
+  cr8 = 0x0,
+  efer = 0x0,
+  apic_base = 0xfee00900,
+  interrupt_bitmap = {0x0, 0x0, 0x0, 0x0}
+}
++p/x regs
+$30 = {
+  rax = 0x0,
+  rbx = 0x0,
+  rcx = 0x0,
+  rdx = 0x0,
+  rsi = 0x0,
+  rdi = 0x0,
+  rsp = 0x0,
+  rbp = 0x0,
+  r8 = 0x0,
+  r9 = 0x0,
+  r10 = 0x0,
+  r11 = 0x0,
+  r12 = 0x0,
+  r13 = 0x0,
+  r14 = 0x0,
+  r15 = 0x0,
+  rip = 0x1000,
+  rflags = 0x2
+}
++n
++n
+main () at main.cpp:354
++n
++p/x serial
+$31 = {
+  bytes_ = 0x0
+}
++s
+(anonymous namespace)::Vcpu::run_loop (this=0x7fffffffd880, serial=..., mem=...) at main.cpp:189
++n
++p/x &serial
+$32 = 0x7fffffffd860
++p/x &mem
+$33 = 0x7fffffffd870
++n
++p fd_.get()
+$34 = 5
++n
+
+Program received signal SIGINT, Interrupt.
+0x0000555555556b41 in (anonymous namespace)::Vcpu::run_loop (this=0x7fffffffd880, serial=..., mem=...) at main.cpp:195
++focus asm
+Focus set to asm window.
++q

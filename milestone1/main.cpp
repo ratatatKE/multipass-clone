@@ -13,11 +13,11 @@
 //
 // Build:  make        Run:  ./tinyvm      (needs Linux + access to /dev/kvm)
 
-#include <fnctl.h>
+#include <fcntl.h>
 #include <linux/kvm.h>
 #include <sys/ioctl.h>
 #include <sys/mman.h>
-#includ < unistd.h>
+#include <unistd.h>
 
 #include <cstdint>
 #include <cstdio>
@@ -77,7 +77,8 @@ namespace
                 ::close(fd_);
             fd_ = -1;
         }
-        int fd = -1;
+
+        int fd_ = -1;
     };
 
     // Guest RAM is just anonymous host memory. The hypervisor writes into it directly
@@ -89,7 +90,7 @@ namespace
         explicit GuestMemory(size_t size) : size_(size)
         {
             // Get some memory from the host operating system using mmap()
-            void *p = mmap(nullptr, size, PROT_READ | PROT_WRITE, MAP_PRIVATE | MAP_ANONYMOUS | MAP_NONRESERVE, -1, 0);
+            void *p = mmap(nullptr, size, PROT_READ | PROT_WRITE, MAP_PRIVATE | MAP_ANONYMOUS | MAP_NORESERVE, -1, 0);
 
             if (p == MAP_FAILED)
             {
@@ -99,13 +100,21 @@ namespace
             base_ = static_cast<uint8_t *>(p);
         }
 
-        ~GuestMemory() { munmap(base_, size); }
+        ~GuestMemory() { munmap(base_, size_); }
         GuestMemory(const GuestMemory &) = delete;
         GuestMemory &operator=(const GuestMemory &) = delete;
 
         // This function converts guest physical address to host virtual address
         uint8_t *host_ptr(uint64_t gpa) const { return base_ + gpa; }
         size_t size() const { return size_; }
+
+        // write to RAM, gpa=guest physical address
+        void write(uint64_t gpa, const void *src, size_t len)
+        {
+            if (gpa + len > size_)
+                throw std::out_of_range("writing outside guest RAM");
+            std::memcpy(host_ptr(gpa), src, len);
+        }
 
     private:
         uint8_t *base_ = nullptr;
@@ -126,6 +135,7 @@ namespace
             std::fflush(stdout);
             ++bytes_;
         }
+        size_t bytes() const { return bytes_; }
 
     private:
         size_t bytes_ = 0;
@@ -143,7 +153,7 @@ namespace
             if (p == MAP_FAILED)
                 throw std::system_error(errno, std::generic_category(), "mmap kvm_run");
             run_ = static_cast<kvm_run *>(p);
-            run_size = sz;
+            run_size_ = sz;
         }
         ~Vcpu()
         {
@@ -174,7 +184,7 @@ namespace
         }
 
         /*
-            The heart of every hypervisor = run the guest until it DOES something that WE MUST HANDLE.
+            The heart of every hypervisor = KVM runs the guest code until our code DOES something that WE (QEMU lookalike) MUST HANDLE.
         */
         void run_loop(SerialPort &serial, const GuestMemory &mem)
         {
@@ -182,59 +192,59 @@ namespace
 
             for (;;)
             {
-                if (ioctl(fd.get(), KVM_RUN, 0) < 0)
+                if (ioctl(fd_.get(), KVM_RUN, 0) < 0)
                 {
                     if (errno == EINTR)
                         continue; // A signal interrupt kicked us out, just re-enter
                     throw std::system_error(errno, std::generic_category(), "KVM_RUN");
                 }
-            }
 
-            switch (run_->exit_reason)
-            {
-            case KVM_EXIT_HLT:
-                ++exit_stats["HLT"];
-                reported(exit_stats, serial, mem);
-                return;
-
-            case KVM_EXIT_IO:
-            {
-                ++exit_stats["IO"];
-                // `out dx, al` in the guest lands here. The data lives in the kvm_run page.
-                auto *data = reinterpret_cast<uint8_t *>(run_) + run_->io.data_offset;
-                if (run_->io.direction == KVM_EXIT_IO_OUT && run_->io.port == kSerialPort)
+                switch (run_->exit_reason)
                 {
-                    for (uint32_t i = 0; i < run_->io.count; ++i)
-                        serial.out(data[i * run_->io.size]);
-                }
-                else if (run_->io.direction == KVM_EXIT_IO_IN)
+                case KVM_EXIT_HLT:
+                    ++exit_stats["HLT"];
+                    report(exit_stats, serial, mem);
+                    return;
+
+                case KVM_EXIT_IO:
                 {
-                    std::memset(data, 0xff, run_->io.size * run_->io.count); // "no-device" reads all-ones
+                    ++exit_stats["IO"];
+                    // `out dx, al` in the guest lands here. The data lives in the kvm_run page.
+                    auto *data = reinterpret_cast<uint8_t *>(run_) + run_->io.data_offset;
+                    if (run_->io.direction == KVM_EXIT_IO_OUT && run_->io.port == kSerialPort)
+                    {
+                        for (uint32_t i = 0; i < run_->io.count; ++i)
+                            serial.out(data[i * run_->io.size]);
+                    }
+                    else if (run_->io.direction == KVM_EXIT_IO_IN)
+                    {
+                        std::memset(data, 0xff, run_->io.size * run_->io.count); // "no-device" reads all-ones
+                    }
+                    else
+                    {
+                        std::fprintf(stderr, "unhandled OUT to port 0x%x \n", run_->io.port);
+                    }
+
+                    break;
                 }
-                else
-                {
-                    std::fprintf(stderr, "unhandled OUT to port 0x%x \n", run_->io.port);
+
+                case KVM_EXIT_MMIO:
+                    // Guest touched a guest physical address with no RAM behind it.
+                    // This is how MMIO devices (and virtio-mmio) work. Milestone 2(roadmap)
+                    throw std::runtime_error("unexpected MMIO at GPA 0x" + hex(run_->mmio.phys_addr));
+
+                case KVM_EXIT_SHUTDOWN:
+                    throw std::runtime_error("guest triple-faulted (KVM_EXIT_SHUTDOWN)");
+
+                case KVM_EXIT_FAIL_ENTRY:
+                    throw std::runtime_error("VM entry failed, hardware reason 0x" + hex(run_->fail_entry.hardware_entry_failure_reason));
+
+                case KVM_EXIT_INTERNAL_ERROR:
+                    throw std::runtime_error("KVM internal error, suberror " + std::to_string(run_->internal.suberror));
+
+                default:
+                    throw std::runtime_error("unhandled exit reason " + std::to_string(run_->exit_reason));
                 }
-
-                break;
-            }
-
-            case KVM_EXIT_MMIO:
-                // Guest touched a guest physical address with no RAM behind it.
-                // This is how MMIO devices (and virtio-mmio) work. Milestone 2(roadmap)
-                throw std::runtime_error("unexpected MMIO at GPA 0x" + hex(run_->mmio.phys_addr));
-
-            case KVM_EXIT_SHUTDOWN:
-                throw std::runtime_error("guest triple-faulted (KVM_EXIT_SHUTDOWN)");
-
-            case KVM_EXIT_FAIL_ENTRY:
-                throw std::runtime_error("VM entry failed, hardware reason 0x" + hex(run_->fail_entry.hardware_entry_failure_reason));
-
-            case KVM_EXIT_INTERNAL_ERROR:
-                throw std::runtime_error("KVM internal error, suberror " + std::to_string(run_->internal.suberror));
-
-            default:
-                throw std::runtime_error("unhandled exit reason " + std::to_string(run_->exit_reason));
             }
         }
 
@@ -257,45 +267,55 @@ namespace
 
             std::printf("serial bytes   : %zu\n", serial.bytes());
             // Topic 4(roadmap) in one line: The guest's physical address and our host virtual address refer to the very same bytes
-            std::sprintf("guest_physical 0x%11x == guest_virtual %p \n", static_cast<unsigned long long>(kMsgGpa), static_cast<void *> mem.host_ptr(kMsgGpa));
+            std::printf("guest_physical 0x%llx == host_virtual %p \n", static_cast<unsigned long long>(kMsgGpa), static_cast<void *>(mem.host_ptr(kMsgGpa)));
         }
 
         Fd fd_;
         kvm_run *run_ = nullptr;
-        size_t run_size = 0;
-    }
-
-    // 16-bit real-mode guest. Loops over a NULL-terminated string, sending each byte to COM1.
-    //
-    //   0x1000: be 10 10     mov si, 0x1010      ; si -> message
-    //   0x1003: ba f8 03     mov dx, 0x3f8       ; dx = serial port
-    //   0x1006: ac           lodsb               ; al = [si++]
-    //   0x1007: 84 c0        test al, al
-    //   0x1009: 74 03        jz  +3              ; -> hlt
-    //   0x100b: ee           out dx, al          ; <-- causes a VM exit (KVM_EXIT_IO)
-    //   0x100c: eb f8        jmp -8              ; -> lodsb
-    //   0x100e: f4           hlt                 ; <-- causes a VM exit (KVM_EXIT_HLT)
-
-    const uint8_t kGuestCode[] = {
-        0xbe,
-        0x10,
-        0x10,
-        0xba,
-        0xf8,
-        0x03,
-        0xac,
-        0x84,
-        0xc0,
-        0x74,
-        0x03,
-        0xee,
-        0xeb,
-        0xf8,
-        0xf4,
+        size_t run_size_ = 0;
     };
-    const char kGuestMessage[] = "Hello from the guest! (printed via a VM exit per byte)\n";
-
 } // namespace
+
+// 16-bit real-mode guest. Loops over a NULL-terminated string, sending each byte to COM1.
+//
+//   0x1000: be 10 10     mov si, 0x1010      ; si -> message
+//   0x1003: ba f8 03     mov dx, 0x3f8       ; dx = serial port
+//   0x1006: ac           lodsb               ; al = [si++]
+//   0x1007: 84 c0        test al, al
+//   0x1009: 74 03        jz  +3              ; -> hlt
+//   0x100b: ee           out dx, al          ; <-- causes a VM exit (KVM_EXIT_IO)
+//   0x100c: eb f8        jmp -8              ; -> lodsb
+//   0x100e: f4           hlt                 ; <-- causes a VM exit (KVM_EXIT_HLT)
+
+/*
+Instruction our program is supposed to execute:
+1.Load the message address into SI.
+2.Load serial port 0x3f8 into DX.
+3.Read a character into AL.
+4.Write it to the serial port, causing a VM exit.
+5.Repeat until the string ends.
+6.Execute HLT, causing another VM exit.
+*/
+
+const uint8_t kGuestCode[] = {
+    0xbe,
+    0x10,
+    0x10,
+    0xba,
+    0xf8,
+    0x03,
+    0xac,
+    0x84,
+    0xc0,
+    0x74,
+    0x03,
+    0xee,
+    0xeb,
+    0xf8,
+    0xf4,
+};
+
+const char kGuestMessage[] = "Hello from the guest! (printed via a VM exit per byte)\n";
 
 int main()
 {
@@ -328,7 +348,7 @@ int main()
         ram.write(kMsgGpa, kGuestMessage, sizeof kGuestMessage); // Includes the NUL.
 
         // roadmap 5-7. One vCPU, one virtual serial port, run.
-        Vcpu vcpu(vm.get(), kvm.get(), /*id=*/0);
+        Vcpu vcpu(vm.get(), kvm.get(), /*id for cpu?=*/0);
         vcpu.reset_to_real_mode(kCodeGpa);
 
         SerialPort serial;
