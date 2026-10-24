@@ -25,7 +25,7 @@
 
 #include "device.h"
 #include "devices.h"
-#include "kvm_util.h";
+#include "kvm_util.h"
 
 using namespace tinyvm;
 
@@ -49,7 +49,7 @@ namespace
     struct ExitStats
     {
         uint64_t pio_in = 0, pio_out = 0, mmio_read = 0, mmio_write = 0, hlt = 0;
-        uint64_t total() const { return pio_in + pio_out + mmio_read + mmio_write + hlt }
+        uint64_t total() const { return pio_in + pio_out + mmio_read + mmio_write + hlt; }
     };
 
     class Vcpu
@@ -89,11 +89,12 @@ namespace
             check(ioctl(fd_.get(), KVM_GET_SREGS, &sregs), "KVM_GET_SREGS");
 
             // lambda function
-            auto flat = [](kvm_segment &s, uint16_t selector, uint9_t type)
+            auto flat = [](kvm_segment &s, uint16_t selector, uint8_t type)
             {
                 s.base = 0;
                 s.limit = 0xffffffff;
                 s.selector = selector;
+                s.type = type;
                 s.present = 1;
                 s.dpl = 0;
                 s.db = 1; // 32-bit
@@ -107,16 +108,30 @@ namespace
             flat(sregs.cs, 0x08, 0xb); // execute/read, accessed
             flat(sregs.ds, 0x10, 0x3); // read/write, accesssed
             flat(sregs.es, 0x10, 0x3);
+            flat(sregs.fs, 0x10, 0x3);
             flat(sregs.gs, 0x10, 0x3);
             flat(sregs.ss, 0x10, 0x3);
-            sregs.cr0 != 1; // CRO.PE i.e. protection enable flag. Paging stays off so that linear address = physical addresss.
+            sregs.cr0 |= 1; // CRO.PE i.e. protection enable flag. Paging stays off so that linear address = physical addresss.
 
-            check(ioctl(fd_.get(), KVM_SET_REGS, &sregs), "KVM_SET_SREGS");
+            check(ioctl(fd_.get(), KVM_SET_SREGS, &sregs), "KVM_SET_SREGS");
 
             kvm_regs regs{};
             regs.rip = entry_ip;
             regs.rflags = 0x2; // bit 1 is reserved-set; IF-0, no interrupts
             check(ioctl(fd_.get(), KVM_SET_REGS, &regs), "KVM_SET_REGS");
+        }
+
+        void dump_state(const char *why)
+        {
+            kvm_regs r;
+            kvm_sregs s;
+            if (ioctl(fd_.get(), KVM_GET_REGS, &r) < 0 || ioctl(fd_.get(), KVM_GET_SREGS, &s) < 0)
+                return;
+            std::fprintf(stderr,
+                         "%s\n  rip=0x%llx rflags=0x%llx cr0=0x%llx\n"
+                         "  cs: sel=0x%x base=0x%llx limit=0x%x type=%u db=%u\n",
+                         why, (unsigned long long)r.rip, (unsigned long long)r.rflags, (unsigned long long)s.cr0,
+                         s.cs.selector, (unsigned long long)s.cs.base, s.cs.limit, s.cs.type, s.cs.db);
         }
 
         ExitStats run_loop(Machine &m)
@@ -133,7 +148,7 @@ namespace
                     throw std::system_error(errno, std::generic_category(), "KVM_RUN");
                 }
 
-                switch (run_->)
+                switch (run_->exit_reason)
                 {
                 case KVM_EXIT_IO:
                 {
@@ -182,20 +197,22 @@ namespace
 
                 case KVM_EXIT_HLT:
                     ++st.hlt;
-                    std::sprintf(stderr, "tinyvm: guest executed hlt without powering off \n");
+                    std::fprintf(stderr, "tinyvm: guest executed hlt without powering off \n");
                     return st;
 
                 case KVM_EXIT_SHUTDOWN:
                     throw std::runtime_error("guest triple-falted (KVM_SHUTDOWN)");
 
                 case KVM_EXIT_FAIL_ENTRY:
+                    dump_state("internal error "); // Dump state of KVM so that we catch errrors faster.
                     throw std::runtime_error("VM entry failed, hardware reason 0x" + hex(run_->fail_entry.hardware_entry_failure_reason));
 
                 case KVM_EXIT_INTERNAL_ERROR:
+                    dump_state("internal error "); // Dump state of KVM so that we catch errrors faster.
                     throw std::runtime_error("KVM internal error, suberror " + std::to_string(run_->internal.suberror));
 
                 default:
-                    thow std::runtime_error("unhandled exit reason " + std:: : to_string(run_->exit_reason));
+                    throw std::runtime_error("unhandled exit reason " + std::to_string(run_->exit_reason));
                 }
             }
 
@@ -221,10 +238,15 @@ namespace
         std::ifstream f(path, std::ios::binary);
         if (!f)
             throw std::runtime_error("cannot open " + path + " (did you run make?)");
-        return std::vector<uint8_t>(std::istreambuf_iterator<char>(f), std::isstreambuf_iterator<char>()); // a vector of funciton pointers?
+        /*
+            std::vector<uint8_t> here: it’s a vector of plain bytes, not of function pointers. 
+            istreambuf_iterator<char> walks the file one byte at a time, and the vector is constructed from that range. 
+            It holds the raw contents of guest.bin, which then get copied into guest RAM.
+        */
+        return std::vector<uint8_t>(std::istreambuf_iterator<char>(f), std::istreambuf_iterator<char>()); 
     }
 
-    void report(const Machine &m, const ExitStats &st, std::chrono::nanoseconds elepsed)
+    void report(const Machine &m, const ExitStats &st, std::chrono::nanoseconds elapsed)
     {
         std::printf("\n ------ vm stopped ----- \n");
         if (m.powered_off)
@@ -236,10 +258,12 @@ namespace
 
         auto print_bus = [](const char *label, const Bus &bus)
         {
-            for (const aut &[ base, r ] : bus.regions())
+            for (const auto &[base, r] : bus.regions())
+            {
                 std::printf(" %s %-10s @ 0x%" PRIx64 " : %" PRIu64 " reads, %" PRIu64 " writes \n", label, r.dev->name(), base, r.reads, r.writes);
+            }
 
-            if (bus.unmapped_reds() || bus.unmapped_writes())
+            if (bus.unmapped_reads() || bus.unmapped_writes())
                 std::printf(" %s unmapped   : %" PRIu64 " reads, %" PRIu64 " writes\n", label, bus.unmapped_reads(), bus.unmapped_writes());
         };
 
@@ -255,7 +279,7 @@ namespace
 
 } // namespace #6.
 
-int main(int argx, char **argv)
+int main(int argc, char **argv)
 {
 
     try

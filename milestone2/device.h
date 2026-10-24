@@ -30,7 +30,7 @@ namespace tinyvm
 
         // `offset` is relative to the base address the device was attached at.
         // `len` is the access width in bytes (1, 2, 4, 8)
-        // NdedaC: Why are we initializing these functions to 0?
+        // NdedaC: Why are we initializing these functions to 0? Aah, is see this function name is overriden in devices.h
         virtual void read(uint64_t offset, uint8_t *data, uint32_t len) = 0;
         virtual void write(uint64_t offset, const uint8_t *data, uint32_t len) = 0;
     };
@@ -48,7 +48,7 @@ namespace tinyvm
         };
 
         /*
-            Attach a device at [base, base+size]. Overlapping regions are a BUG IN THE MACHINE definition, so we refuse them
+            Attach a device at {base, base+size}. Overlapping regions are a BUG IN THE MACHINE definition, so we refuse them
             loudly instead of letting one device shadow another
         */
 
@@ -70,7 +70,7 @@ namespace tinyvm
                     throw std::invalid_argument("bus : region overlaps and existing device");
             }
 
-            regions_[base] = Region[base, size, &dev];
+            regions_[base] = Region{base, size, &dev};
         }
 
         /*
@@ -101,7 +101,7 @@ namespace tinyvm
                 return true;
             }
 
-            ++unmapped_write_;
+            ++unmapped_writes_;
             return false;
         }
 
