@@ -15,6 +15,8 @@
 #include "device.h"
 #include "devices.h"
 
+using namespace tinyvm; // kind of like `using namespace std` but now it is our own namespace, isn't that COOL?
+
 static int failures = 0;
 // The __FILE__ and __LINE__ are compiler variables that produce the file and the line number.
 #define CHECK(cond)                                                              \
@@ -25,9 +27,9 @@ static int failures = 0;
             std::fprintf(stderr, "FAIL %s:%d: %s\n", __FILE__, __LINE__, #cond); \
             ++failures;                                                          \
         }                                                                        \
-    } while (0)
+    } while (0);
 
-// A mocke device that records what it was asked, so that we can check the bus routes correctly
+// A mock device that records what it was asked, so that we can check the bus routes correctly
 
 struct Recorder : Device
 {
@@ -62,7 +64,7 @@ static void test_bus_routing()
 
     uint8_t buf[4] = {};
     CHECK(bus.read(0x3fd, buf, 1));
-    CHECK(a.last_read_off = 5); // offsets are relative to the evice base
+    CHECK(a.last_read_off == 5); // offsets are relative to the device base
     CHECK(buf[0] == 0xa0);
 
     uint8_t v = 0x42;
@@ -79,18 +81,6 @@ static void test_bus_routing()
 
     CHECK(bus.regions().at(0x3f8).reads == 3); // 0x3fd, 0x3f8, 0x3ff
     CHECK(bus.regions().at(0xd0000000).writes == 1);
-}
-
-static void test_bus_unmapped()
-{
-    Bus bus;
-    uint8_t buf[4] = {0, 0, 0, 0};
-    CHECK(!bus.read(0xdead0000, buf, 4));
-    CHECK(buf[0] == 0xff && buf[1] == 0xff && buf[2] == 0xff && buf[3] == 0xff); // open bus
-    uint8_t v = 1;
-    CHECK(!bus.write(0xdead0000, &v, 1));
-    CHECK(bus.unmapped_reads() == 1);
-    CHECK(bus.unmapped_writes() == 1);
 }
 
 static void test_bus_unmapped()
@@ -141,7 +131,7 @@ static void test_uart_transmit_and_status()
     Uart16550 uart(out);
     uint8_t c = 'H';
     uart.write(0, &c, 1);
-    c = '1';
+    c = 'i';
     uart.write(0, &c, 1);
     CHECK(out.str() == "Hi");
     CHECK(uart.tx_bytes() == 2);
@@ -206,7 +196,7 @@ static void test_control_device()
     CHECK(v == 3);
 
     uint32_t s = 0x12345678;
-    dev.write(0x0c, reinterpret_cast<uint8_t *>(&s));
+    dev.write(0x0c, reinterpret_cast<uint8_t *>(&s), 4);
     v = 0;
     dev.read(0x0c, reinterpret_cast<uint8_t *>(&v), 4);
     CHECK(v == 0x12345678);
@@ -237,7 +227,7 @@ static void test_end_to_end_machine()
     mmio.attach(0xd0000000, ControlDevice::kSize, ctl);
 
     uint8_t ch = 'A';
-    CHECK(pio.write(0x3fd, &ch, 1));
+    CHECK(pio.write(0x3f8, &ch, 1));
     uint8_t lsr = 0;
     CHECK(pio.read(0x3fd, &lsr, 1));
     CHECK(lsr == 0x60);

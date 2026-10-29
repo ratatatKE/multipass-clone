@@ -26,7 +26,7 @@ disasm: guest.bin
 	objdump -D -b binary -m i386 --adjust-vma=0x1000 guest.bin | less
 
 run: all
-	./tinyvm guest.bin
+	./tinyvm guest.bin 
 
 clean: 
 	rm -f tinyvm test_bus guest.o guest.bin
