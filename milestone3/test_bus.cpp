@@ -27,7 +27,7 @@ static int failures = 0;
             std::fprintf(stderr, "FAIL %s:%d: %s\n", __FILE__, __LINE__, #cond); \
             ++failures;                                                          \
         }                                                                        \
-    } while (0);
+    } while (0)
 
 // A mock device that records what it was asked, so that we can check the bus routes correctly
 

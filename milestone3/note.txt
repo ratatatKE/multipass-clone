@@ -1,0 +1,2 @@
+At this point, our VM (the guest) can run any of our own 64-bit freestanding Assembly code that does not involve the C standard library.
+We have to provide our own library functions.
