@@ -1,4 +1,6 @@
-# The virtual network, from first principles
+# The virtual network, from first principles 
+`Note, we agreed with AI that it is better to read Multipass source code after 4,5,6 instead of doing milestone 7. Agreement here = https://claude.ai/chat/54b8bfac-dec7-477a-a15b-ff846878bc2f`
+
 
 *tinyvm milestone 4 (the combined M4 + M5 + M6): a guide for a C engineer who thinks in layers.*
 

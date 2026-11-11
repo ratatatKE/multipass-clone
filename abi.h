@@ -91,7 +91,7 @@ namespace virtio {
     constexpr uint32_t kVendor      = 0x4d565454;                   // arbitrary vendor id
 
     constexpr uint32_t kRegMagicValue           = 0x000;                // RO
-    constexpr uint32_t kRegversion              = 0x004;                // RO
+    constexpr uint32_t kRegVersion              = 0x004;                // RO
     constexpr uint32_t kRegDeviceId             = 0x008;                // RO
     constexpr uint32_t kRegVendorId             = 0x00c;                // RO
     constexpr uint32_t kRegDeviceFeatures       = 0x010;                // RO   32 bits of features, chosen by DeviceFeaturesSel
